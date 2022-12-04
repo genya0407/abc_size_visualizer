@@ -1,0 +1,90 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+$LOAD_PATH.unshift("#{__dir__}/lib")
+
+require "abc_size_visualizer"
+
+module AbcSizeVisualizer
+  class VisualizeAbcSize
+    COLOR_BY_TYPE = {
+      assignment: :red,
+      branch: :yellow,
+      condition: :blue
+    }
+    MAX_BAR_SIZE = 20
+
+    def initialize(source_file_name:)
+      @abc_size_result = []
+      @source = File.read(source_file_name)
+      buffer = Parser::Source::Buffer.new(source_file_name, source: @source)
+      parser = Parser::CurrentRuby.new(RuboCop::AST::Builder.new)
+      @node = parser.parse(buffer)
+      @highlighted_source_by_line_num = begin
+        formatter = Rouge::Formatters::TerminalTruecolor.new
+        lexer = Rouge::Lexers::Ruby.new
+        formatter.format(lexer.lex(@source)).lines(chomp: true).zip(1..).map do |line, line_num|
+          [line_num, line]
+        end.to_h
+      end
+    end
+
+    def execute
+      calculators = analyze(@node)
+
+      @source.lines(chomp: true).zip(1..).each do |line, line_num|
+        calculator = calculators.find { |calculator| calculator.abc_by_line_num[line_num] }
+        bar = generate_bar(calculator:, line_num:).ljust(MAX_BAR_SIZE + 3)
+        highlighted_line = @highlighted_source_by_line_num[line_num]
+        annotation = generate_annotation(calculator:, line_num:)
+        puts [bar, highlighted_line, annotation].join("")
+      end
+    end
+
+    private
+
+    def analyze(node)
+      case node.type
+      when :def, :defs
+        calculator = ::AbcSizeVisualizer::AbcSizeCalculator.new(node)
+        calculator.calculate
+        [calculator]
+      when :begin, :module, :class
+        node.each_child_node.flat_map do |child_node|
+          analyze(child_node)
+        end
+      else
+        []
+      end
+    end
+
+    def generate_bar(calculator:, line_num:)
+      if calculator
+        abc_size_by_type = calculator.abc_by_line_num[line_num]
+        max_abc = calculator.abc_by_line_num.values.map { |abc| abc.values.sum }.max
+        types = %i[assignment branch condition]
+        sizes = types.map do |type|
+          (MAX_BAR_SIZE * (abc_size_by_type[type].to_f / max_abc)).ceil
+        end
+        bar = sizes.zip(types).map do |size, type|
+          ColorizedString[" " * size].colorize(background: COLOR_BY_TYPE[type])
+        end.join("")
+        ljust_count = [(MAX_BAR_SIZE + 3) - sizes.sum, 0].max
+        bar + (" " * ljust_count)
+      else
+        " " * (MAX_BAR_SIZE + 3)
+      end
+    end
+
+    def generate_annotation(calculator:, line_num:)
+      return "" unless calculator
+
+      abc_size_by_type = calculator.abc_by_line_num[line_num]
+      return "" if abc_size_by_type.values.sum <= 0
+
+      " # <" + abc_size_by_type.values_at(:assignment, :branch, :condition).join(", ") + ">"
+    end
+  end
+end
+
+AbcSizeVisualizer::VisualizeAbcSize.new(source_file_name: ARGV[0]).execute
