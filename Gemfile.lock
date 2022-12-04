@@ -2,9 +2,9 @@ PATH
   remote: .
   specs:
     abc_size_visualizer (0.1.0)
-      colorize
-      rouge
-      rubocop
+      colorize (~> 0.8.0)
+      rouge (~> 4.0.0)
+      rubocop (~> 1.39.0)
 
 GEM
   remote: https://rubygems.org/
@@ -70,7 +70,7 @@ PLATFORMS
 
 DEPENDENCIES
   abc_size_visualizer!
-  debug
+  debug (~> 1.6)
   rake (~> 13.0)
   rspec (~> 3.0)
   standard (~> 1.3)
