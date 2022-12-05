@@ -2,7 +2,7 @@
 
 ```bash
 $ gem install abc_size_visualizer
-$ abc_size_visualizer some_code.rb
+$ visualize_abc_size some_code.rb
 # prints size of 1)assignment 2)branch 3)condition with code.
 # red means assignment, yellow means branch, blue means condition
 ```
